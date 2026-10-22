@@ -368,6 +368,24 @@
         </div>
 
         <div class="panel" style="margin-top:16px">
+          <div class="panel-head"><h3>AI 代理 / MCP</h3><div class="right"><span class="chip"><span class="dot online"></span>已启用</span></div></div>
+          <div class="panel-body">
+            <dl class="kv">
+              <dt>HTTP 端点</dt><dd id="mcp-endpoint">/mcp</dd>
+              <dt>stdio 命令</dt><dd id="mcp-command">wraith mcp --demo</dd>
+              <dt>传输</dt><dd id="mcp-transports">stdio / streamable-http</dd>
+              <dt>工具数量</dt><dd id="mcp-tools">—</dd>
+              <dt>调用审计</dt><dd id="mcp-audit">data/mcp-audit.jsonl</dd>
+            </dl>
+            <p class="muted" style="font-size:12px;line-height:1.7;margin:0">
+              DSH / Claude / Codex 可通过 stdio 或 Streamable HTTP 调用以上全部功能点。
+              配置示例与工具清单见 <span class="mono">docs/MCP.md</span>。MCP 与网页共用同一授权门禁，
+              演示模式不会触碰真实无线设备。
+            </p>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
           <div class="panel-head"><h3>授权审计日志</h3><div class="right"><button class="btn sm ghost" id="audit-refresh">刷新</button></div></div>
           <div class="table-wrap">
             <table>

@@ -133,6 +133,46 @@ def cmd_web(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_mcp(args: argparse.Namespace) -> int:
+    """以 MCP 服务器运行：stdio（默认）或 streamable-http。"""
+    config = _config_from_args(args)
+    if args.url and args.transport == "http":
+        print(c("  --url 仅用于 stdio 代理模式；HTTP 模式请直接连接 /mcp\n", "red"))
+        return 2
+
+    if args.transport == "http":
+        import uvicorn
+
+        from .mcp.specs import TOOL_SPECS
+        from .web.app import create_app
+
+        app = create_app(config)
+        host = args.host or config.host
+        port = args.port or 8790
+        url = f"http://{host}:{port}"
+        print(c(f"\n  Wraith MCP (streamable-http)\n", "bold"))
+        print(f"  MCP 端点：{c(url + '/mcp', 'cyan')}")
+        print(f"  工具数量：{len(TOOL_SPECS)}")
+        print(f"  授权状态：{c('已授权' if config.authorized else '未授权（live 模式需先 authorize）', 'green' if config.authorized else 'yellow')}\n")
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+        return 0
+
+    if args.url:
+        from .mcp.runtime import audit_path_for
+        from .mcp.stdio import run_stdio
+
+        return asyncio.run(
+            run_stdio(base_url=args.url, audit_path=audit_path_for(config.data_dir))
+        )
+
+    from .mcp.runtime import audit_path_for
+    from .mcp.stdio import run_stdio
+
+    return asyncio.run(
+        run_stdio(config=config, audit_path=audit_path_for(config.data_dir))
+    )
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
     async def run() -> int:
         config = _config_from_args(args)
@@ -397,6 +437,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="示例：\n"
         "  wraith web --demo                 # 演示模式启动控制台\n"
+        "  wraith mcp --demo                 # stdio MCP 服务器（供 DSH 拉起）\n"
+        "  wraith mcp --transport http -p 8790  # 独立 MCP HTTP 服务\n"
         "  sudo wraith web --live --open     # 实机模式（需授权）\n"
         "  sudo wraith scan -i wlan0 -t 60   # 命令行扫描 60 秒\n"
         "  wraith doctor                     # 检查工具依赖\n",
@@ -424,6 +466,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_web.add_argument("--open", action="store_true", help="启动后自动打开浏览器")
     p_web.add_argument("--verbose", "-v", action="store_true")
     p_web.set_defaults(func=cmd_web)
+
+    p_mcp = sub.add_parser("mcp", help="以 MCP 服务器运行（供 DSH / AI 代理调用）")
+    p_mcp.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default="stdio",
+        help="stdio（DSH 本地拉起）或 streamable-http（挂载 /mcp）",
+    )
+    p_mcp.add_argument("--url", default=None, help="stdio 代理模式：连接已运行的 wraith web")
+    p_mcp.add_argument("--host", default=None, help="HTTP 模式监听地址")
+    p_mcp.add_argument("--port", "-p", type=int, default=None, help="HTTP 模式监听端口（默认 8790）")
+    p_mcp.add_argument("--demo", action="store_true", default=argparse.SUPPRESS)
+    p_mcp.add_argument("--live", action="store_true", default=argparse.SUPPRESS)
+    p_mcp.add_argument("--authorized", action="store_true", default=argparse.SUPPRESS)
+    p_mcp.add_argument("--iface", "-i", default=argparse.SUPPRESS)
+    p_mcp.add_argument("--wordlist", "-w", default=argparse.SUPPRESS)
+    p_mcp.add_argument("--operator", default=argparse.SUPPRESS)
+    p_mcp.set_defaults(func=cmd_mcp)
 
     p_doctor = sub.add_parser("doctor", help="检查系统依赖")
     p_doctor.set_defaults(func=cmd_doctor)

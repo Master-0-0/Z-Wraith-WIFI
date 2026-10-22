@@ -21,6 +21,9 @@ from pydantic import BaseModel, Field
 
 import wraith
 from ..config import Config
+from ..mcp.http import build_mcp_router
+from ..mcp.protocol import MCPServer
+from ..mcp.runtime import PlatformRuntime, audit_path_for
 from ..models import AP, vendor_for
 from ..report.generator import ReportGenerator
 from ..system import deps
@@ -140,7 +143,12 @@ def create_app(config: Config | None = None) -> FastAPI:
         try:
             yield
         finally:
-            await state.shutdown()
+            try:
+                await state.shutdown()
+            finally:
+                mcp_runtime = getattr(app.state, "wraith_mcp", None)
+                if mcp_runtime is not None:
+                    await mcp_runtime.aclose()
 
     app = FastAPI(
         title="Wraith Wi-Fi 渗透测试平台",
@@ -149,6 +157,17 @@ def create_app(config: Config | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.wraith = state
+
+    # MCP：同一进程内通过 ASGI 调用自身 REST API，保证与 Web 控制台行为一致。
+    mcp_runtime = PlatformRuntime(
+        app=app,
+        audit_path=audit_path_for(cfg.data_path),
+    )
+    mcp_server = MCPServer(mcp_runtime.call, name="wraith", version=wraith.__version__)
+    app.state.wraith_mcp = mcp_runtime
+    app.state.mcp_server = mcp_server
+    app.include_router(build_mcp_router(mcp_server, mcp_runtime))
+
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -357,6 +376,15 @@ def create_app(config: Config | None = None) -> FastAPI:
             return {"jobs": []}
         return {"jobs": state.attacks.jobs(limit)}
 
+    @app.get("/api/attacks/jobs/{job_id}")
+    async def attack_job_detail(job_id: str):
+        if not state.attacks:
+            raise RuntimeError("攻击管理器未初始化")
+        job = state.attacks.get(job_id)
+        if not job:
+            raise KeyError(f"攻击任务不存在: {job_id}")
+        return job.to_dict()
+
     # ------------------------------------------------------------------ 抓包/破解
     @app.get("/api/captures")
     async def captures():
@@ -401,6 +429,13 @@ def create_app(config: Config | None = None) -> FastAPI:
             "cracks": state.store.list_cracks_for_session(state.session_id, 50),
             "active": state.cracks.active if state.cracks else [],
         }
+
+    @app.get("/api/cracks/{job_id}")
+    async def crack_detail(job_id: int):
+        job = state.store.get_crack(job_id)
+        if not job:
+            raise KeyError(f"破解任务不存在: {job_id}")
+        return job
 
     @app.post("/api/cracks/{job_id}/stop")
     async def crack_stop(job_id: int):

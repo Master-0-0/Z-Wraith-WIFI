@@ -11,9 +11,12 @@ reaver、hostapd、mdk4、eaphammer 等工具链中的攻击手法，整合为�
 - **11 个攻击模块**：Deauth、四次握手、PMKID、WPS Pixie/PIN、WEP、邪恶双胞胎+门户、
   WPA3 过渡模式降级、Karma/MANA、企业 EAP、Beacon 洪泛
 - **完整闭环**：扫描 → 选目标 → 攻击 → 捕获 → 破解 → 报告
+- **MCP 原生接入**：43 个功能点全部暴露为 MCP 工具，DSH / Claude / Codex 可通过
+  stdio 或 Streamable HTTP 直接调用平台（见 [docs/MCP.md](docs/MCP.md)）
 - **真实密码学**：PMKID / 四次握手校验用纯 Python 实现（带 hashcat 已知向量测试），
   演示模式生成的哈希与真实抓包一样可被 hashcat/aircrack 校验
-- **强制授权门禁 + JSONL 审计日志**：live 模式必须显式确认授权，范围外目标一律拒绝
+- **强制授权门禁 + JSONL 审计日志**：live 模式必须显式确认授权，范围外目标一律拒绝；
+  MCP 调用同样写审计，令牌等敏感参数自动脱敏
 - **演示模式**：无需 root、无需无线网卡即可完整走通全流程（内置 14 个虚拟 AP）
 - **中文界面 + 报告**：深色控制台、WebSocket 实时事件、HTML/JSON/Markdown 报告
 
@@ -29,6 +32,7 @@ reaver、hostapd、mdk4、eaphammer 等工具链中的攻击手法，整合为�
 - [攻击模块](#攻击模块)
 - [命令行](#命令行)
 - [演示模式](#演示模式)
+- [AI 代理 / MCP](#ai-代理--mcp)
 - [架构](#架构)
 - [API](#api)
 - [数据与报告](#数据与报告)
@@ -177,7 +181,10 @@ sudo -E .venv/bin/python -m wraith web --live --open --iface wlan0
 ```bash
 wraith doctor                          # 依赖体检
 wraith interfaces                      # 网卡与 monitor/AP 能力
-wraith web --demo                      # Web 控制台
+wraith web --demo                      # Web 控制台（含 /mcp）
+wraith mcp --demo                      # stdio MCP 服务器（供 DSH 拉起）
+wraith mcp --transport http -p 8790    # 独立 MCP HTTP 服务
+wraith mcp --url http://127.0.0.1:8787 # 代理到已运行的控制台
 wraith scan -i wlan0 -t 60             # 命令行扫描 60 秒
 wraith targets                         # 最近一次有结果的会话
 wraith attack handshake -b <BSSID> -e <SSID> -c 6 --security WPA2
@@ -210,16 +217,61 @@ sudo wraith --live --authorized attack pmkid -b AA:BB:CC:DD:EE:FF
 
 ---
 
+## AI 代理 / MCP
+
+Wraith 内置 MCP 服务器，把 **43 个功能点**（系统/授权/扫描/AP/客户端/攻击/抓包/
+破解/凭证/发现/事件/会话/门户/报告）全部暴露为 AI 可调用工具。工具不复制业务逻辑，
+而是复用同一套 REST 路径，因此授权门禁、demo/live 行为与 Web 控制台完全一致。
+
+```bash
+# stdio：供 DSH / Claude Desktop 直接拉起（默认 demo）
+./scripts/mcp-stdio.sh --demo
+
+# Streamable HTTP：随 Web 控制台挂载
+.venv/bin/python -m wraith web --demo
+# → http://127.0.0.1:8787/mcp
+```
+
+DSH 配置文件（`~/.dsh/profiles/<profile>/cordis.patch.yml`）：
+
+```yaml
+- id: mcp-wraith
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: wraith
+    transport: stdio
+    command: /home/kali/桌面/ wifi/scripts/mcp-stdio.sh
+    args: ['--demo']
+    cwd: /home/kali/桌面/ wifi
+    toolCallTimeoutMs: 120000
+```
+
+重载后工具以 `mcp__wraith__scan_start`、`mcp__wraith__attack_start` 等形式出现。
+推荐链路：`system_info → scan_start → aps → attack_start → attack_wait → captures →
+crack_start → crack_wait → report`。
+
+live 模式必须先在工具中 `authorize(token="AUTHORIZED")`；每次调用写入
+`data/mcp-audit.jsonl`，令牌/口令等参数自动脱敏。完整工具清单、客户端配置与
+故障排查见 **[docs/MCP.md](docs/MCP.md)**。
+
+---
+
 ## 架构
 
 ```
 wraith/
-├── cli.py                 # argparse CLI（web/scan/attack/crack/report/doctor）
+├── cli.py                 # argparse CLI（web/mcp/scan/attack/crack/report/doctor）
 ├── config.py              # 配置：文件 + WRAITH_* 环境变量
 ├── models.py              # AP/Client/Capture/CrackJob/Credential/Finding/Session
 ├── store.py               # SQLite（WAL）+ 线程安全 CRUD
 ├── events.py              # 进程内事件总线（WebSocket 扇出 + 历史回放）
 ├── authorization.py       # 授权门禁 + JSONL 审计
+├── mcp/
+│   ├── specs.py           # 43 个工具声明（JSON Schema + REST 映射）
+│   ├── runtime.py         # 参数校验、ASGI/HTTP 调用、等待/下载组合工具、审计
+│   ├── protocol.py        # MCP JSON-RPC（initialize/tools/list/tools/call）
+│   ├── stdio.py           # stdio 传输 + 嵌入式惰性启动
+│   └── http.py            # Streamable HTTP /mcp + Origin 校验
 ├── system/
 │   ├── deps.py            # 工具依赖矩阵与安装建议
 │   ├── runner.py          # 无 shell 的异步命令执行（脱敏/超时/只读探测）
@@ -238,7 +290,7 @@ wraith/
 │   └── manager.py         # 破解任务、进度、结果回写
 ├── report/generator.py    # HTML / Markdown / JSON 报告
 └── web/
-    ├── app.py             # FastAPI：REST + WebSocket + 静态控制台
+    ├── app.py             # FastAPI：REST + WebSocket + /mcp + 静态控制台
     ├── state.py           # 生命周期与子系统装配
     └── static/            # 控制台（原生 JS，无构建步骤）
 ```
@@ -249,6 +301,8 @@ wraith/
 - 口令类参数写日志前脱敏（`redact_command`）；
 - 抓包下载校验路径必须位于 `captures/` 内；
 - 所有攻击入口同时经过 **API 授权检查 + 模块内 `ctx.authorize` 审计**；
+- MCP 工具复用同一 REST 路径，不绕过授权；`/mcp` 校验 Origin，调用写
+  `data/mcp-audit.jsonl` 并脱敏令牌/口令；
 - 关闭服务时终止子进程、结束会话、释放监听网卡。
 
 ---
@@ -269,11 +323,14 @@ wraith/
 | GET | `/api/attacks` | 模块列表、活动任务 |
 | POST | `/api/attacks/{id}/start` | 启动攻击 |
 | POST | `/api/attacks/stop` | 停止当前攻击 |
+| GET | `/api/attacks/jobs` / `/{job_id}` | 攻击历史 / 任务详情 |
 | GET | `/api/captures` | 抓包列表（可下载） |
 | POST | `/api/captures/{id}/crack` | 启动破解 |
+| GET | `/api/cracks` / `/{job_id}` | 破解列表 / 任务详情 |
 | GET | `/api/credentials` | 门户凭证 |
 | GET | `/api/report/html\|json\|md` | 在线报告 |
 | POST | `/api/report/save` | 保存三种格式 |
+| POST | `/mcp` | MCP Streamable HTTP（JSON-RPC） |
 | WS | `/ws` | 实时事件流 |
 
 ---
@@ -284,6 +341,7 @@ wraith/
 |---|---|
 | `data/wraith.db` | 会话、AP、客户端、抓包、破解、凭证、发现、事件 |
 | `data/audit.jsonl` | 授权决策审计（允许/拒绝、目标、操作者） |
+| `data/mcp-audit.jsonl` | MCP 工具调用审计（参数脱敏） |
 | `data/commands.jsonl` | 实际执行的命令（参数脱敏） |
 | `captures/` | `.cap` / `.pcapng` / `.22000` 抓包 |
 | `data/reports/` | 生成的 HTML/JSON/Markdown 报告 |
@@ -298,7 +356,7 @@ wraith/
 
 ```bash
 python3 -m pytest -q
-# 58 passed
+# 79 passed
 ```
 
 覆盖：
@@ -312,6 +370,8 @@ python3 -m pytest -q
 - **授权**：demo/live 分支、令牌、范围通配、审计落盘
 - **报告**：三种格式与内容断言
 - **API**：扫描 → 攻击 → 破解 → 报告全链路、WebSocket、live 拒绝
+- **MCP**：initialize/tools 协议、43 工具与 REST 路由一一覆盖、demo 全链路、
+  live 授权拒绝、审计脱敏、stdio 子进程握手
 
 ---
 
@@ -362,6 +422,8 @@ python3 -m pytest -q
 ## 参考
 
 - [docs/ATTACK_TECHNIQUES.md](docs/ATTACK_TECHNIQUES.md) — 攻击手法总览（含 GitHub 生态矩阵）
+- [docs/MCP.md](docs/MCP.md) — MCP 接入指南（43 工具、DSH/Claude 配置、审计与排查）
+- [Model Context Protocol](https://modelcontextprotocol.io) — MCP 规范与客户端生态
 - [aircrack-ng](https://github.com/aircrack-ng/aircrack-ng) · [hcxdumptool](https://github.com/ZerBea/hcxdumptool) · [hcxtools](https://github.com/ZerBea/hcxtools)
 - [wifite2](https://github.com/derv82/wifite2) · [airgeddon](https://github.com/v1s1t0r1sh3r3/airgeddon) · [wifiphisher](https://github.com/wifiphisher/wifiphisher) · [wifipumpkin3](https://github.com/P0cL4bs/wifipumpkin3)
 - [eaphammer](https://github.com/s0lst1c3/eaphammer) · [hostapd-mana](https://github.com/sensepost/hostapd-mana)

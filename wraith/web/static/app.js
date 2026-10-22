@@ -261,6 +261,18 @@ async function refreshSystem() {
     ? "演示模式：模拟执行，不触碰真实设备"
     : `实机模式${sys.root ? "" : "（缺少 root，攻击可能失败）"}`;
 
+  // MCP / AI 代理信息
+  const mcp = sys.mcp || {};
+  const mcpSet = (id, value) => {
+    const el = $(id);
+    if (el) el.textContent = value;
+  };
+  mcpSet("#mcp-endpoint", mcp.endpoint || "/mcp");
+  mcpSet("#mcp-command", mcp.stdio_command || "wraith mcp --demo");
+  mcpSet("#mcp-transports", (mcp.transports || []).join(" / ") || "stdio / streamable-http");
+  mcpSet("#mcp-tools", mcp.tool_count ?? "—");
+  mcpSet("#mcp-audit", mcp.audit_path || "data/mcp-audit.jsonl");
+
   // 网卡下拉
   const select = $("#iface-select");
   const current = select.value || sys.config.iface || "";

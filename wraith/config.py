@@ -148,6 +148,8 @@ class Config:
             "WRAITH_WORDLIST": ("wordlist", str),
             "WRAITH_OPERATOR": ("operator", str),
             "WRAITH_AUTHORIZED": ("authorized", bool),
+            "WRAITH_DATA_DIR": ("data_dir", str),
+            "WRAITH_CAPTURE_DIR": ("capture_dir", str),
         }
         for env, (attr, typ) in mapping.items():
             if env not in os.environ:

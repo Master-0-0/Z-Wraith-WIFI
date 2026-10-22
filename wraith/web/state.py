@@ -16,6 +16,7 @@ from ..authorization import AuthorizationGate
 from ..config import Config
 from ..crack.manager import CrackManager
 from ..events import EventBus
+from ..mcp.specs import TOOL_SPECS
 from ..models import Credential, Session
 from ..recon.demo import DEMO_WORDLIST
 from ..recon.scanner import Scanner
@@ -240,6 +241,14 @@ class AppState:
             "attack": self.attack_info(),
             "crack_active": self.cracks.active if self.cracks else [],
             "deps": deps.doctor(),
+            "mcp": {
+                "enabled": True,
+                "endpoint": "/mcp",
+                "transports": ["stdio", "streamable-http"],
+                "stdio_command": "wraith mcp --demo",
+                "tool_count": len(TOOL_SPECS),
+                "audit_path": str(self.config.data_path / "mcp-audit.jsonl"),
+            },
             "uptime": round(time.time() - self.started_at, 1),
         }
 
