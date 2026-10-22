@@ -151,8 +151,9 @@ sudo apt install -y aircrack-ng hcxdumptool hcxtools reaver bully pixiewps \
                     hostapd dnsmasq mdk4 macchanger iw \
                     hostapd-mana eaphammer bettercap kismet wifiphisher \
                     hashcat john tshark
-./install.sh --tools        # 自动安装缺失的 apt 工具
-python3 -m wraith doctor    # 检查依赖
+./install.sh --tools            # 自动安装缺失的 apt 工具
+./scripts/check-deps.sh         # 检查 Python/系统工具/目录/端口
+python3 -m wraith doctor        # 平台内置依赖矩阵
 ```
 
 需要跑测试时安装开发依赖：`pip install -e ".[dev]"`（pytest / pytest-asyncio / httpx）。
@@ -191,6 +192,38 @@ sudo -E .venv/bin/python -m wraith web --live --open --iface wlan0
 
 > 实机模式会真实发送 Deauth/Beacon/认证帧，可能造成网络中断。请只在隔离环境或
 > 明确授权的生产窗口内使用。
+
+### 4. 依赖检查与服务管理
+
+`check-deps.sh` 是只读检查脚本，覆盖 Python 版本与依赖、系统无线工具矩阵、
+项目目录、磁盘空间、监听端口与默认字典；`--live` 追加 root、无线网卡、
+monitor/AP 模式与 rfkill 检查，`--json` 输出机器可读结果。
+
+```bash
+./scripts/check-deps.sh                 # 演示模式环境检查
+./scripts/check-deps.sh --live          # 追加实机前提（普通用户会提示需要 root）
+sudo -E ./scripts/check-deps.sh --live  # 完整的实机前提检查
+./scripts/check-deps.sh --json          # 供 CI / 自动化消费
+```
+
+`wraith-service.sh` 负责后台启停，默认以**演示模式**启动，健康检查通过后才返回。
+PID、上次运行状态与日志保存在 `data/run/`：
+
+```bash
+./scripts/wraith-service.sh start      # 后台启动演示模式
+./scripts/wraith-service.sh status     # 运行中返回 0，已停止返回 3
+./scripts/wraith-service.sh logs       # tail -f data/run/wraith-web.log
+./scripts/wraith-service.sh restart    # 默认沿用上次的模式/地址/端口/网卡
+./scripts/wraith-service.sh stop
+
+# 实机模式（需要 root；启动后仍需在「设置 → 授权门禁」输入 AUTHORIZED）
+sudo -E ./scripts/wraith-service.sh start --live --iface wlan0
+```
+
+状态文件：`data/run/wraith-web.pid`、`data/run/wraith-web.state`；
+日志：`data/run/wraith-web.log`。`start` 遇到已有实例会直接复用，不会重复启动；
+`status` / `stop` 也会按端口发现由旧脚本或手工启动的未托管实例（root 进程需用
+`sudo -E` 停止）。`stop` 先发 SIGTERM，超时后再 SIGKILL，确保释放网卡与子进程。
 
 ---
 
