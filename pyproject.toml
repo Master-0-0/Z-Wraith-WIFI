@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wraith-wifi"
+version = "1.0.0"
+description = "Wraith — 面向授权测试的 Wi-Fi 渗透测试平台"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Wraith Project" }]
+keywords = ["wifi", "pentest", "802.11", "security", "wpa3"]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "jinja2>=3.1",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "httpx>=0.27"]
+
+[project.scripts]
+wraith = "wraith.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["wraith*"]
+
+[tool.setuptools.package-data]
+"wraith.web" = ["static/*", "templates/*"]
+"wraith" = ["data/*.gz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

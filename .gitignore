@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
+
+# Wraith 运行数据（含凭证/哈希，默认不入库）
+/data/
+/captures/
+/replay_*.cap
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+*.swp

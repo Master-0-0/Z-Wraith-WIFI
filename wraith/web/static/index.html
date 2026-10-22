@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wraith · Wi-Fi 渗透测试平台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">W</div>
+      <div>
+        <h1>Wraith</h1>
+        <p>Wi-Fi 渗透测试平台</p>
+      </div>
+    </div>
+    <nav id="nav">
+      <button class="nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        总览
+      </button>
+      <button class="nav-item" data-view="targets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8.5" stroke-dasharray="2 3"/></svg>
+        目标 <span class="count" id="nav-ap-count">0</span>
+      </button>
+      <button class="nav-item" data-view="attacks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/></svg>
+        攻击
+      </button>
+      <button class="nav-item" data-view="captures">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        捕获与破解
+      </button>
+      <button class="nav-item" data-view="credentials">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8.5 12 3 3 8.5v7L12 21l9-5.5v-7Z"/><path d="M3 8.5 12 14l9-5.5M12 14v7"/></svg>
+        凭证 <span class="count" id="nav-cred-count">0</span>
+      </button>
+      <button class="nav-item" data-view="report">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+        报告
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+        设置
+      </button>
+    </nav>
+    <div class="side-foot">
+      <div class="mode-badge demo" id="mode-badge">演示模式</div>
+      <div class="ver">Wraith v1.0.0 · 仅限授权测试</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="scan-ctrl">
+        <select id="iface-select" title="扫描网卡"></select>
+        <button class="btn primary" id="scan-btn">▶ 开始扫描</button>
+        <button class="btn ghost hidden" id="scan-stop">■ 停止扫描</button>
+      </div>
+      <div class="top-status">
+        <span class="pill" id="scan-status">空闲</span>
+        <span class="chip"><span class="dot offline" id="ws-status"></span><span id="ws-label">连接中</span></span>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- ============================================================ 总览 -->
+      <section class="view active" id="view-dashboard">
+        <div class="view-head">
+          <div>
+            <h2>总览</h2>
+            <p id="dash-sub">实时掌握无线环境、攻击进度与风险发现</p>
+          </div>
+          <div class="actions">
+            <button class="btn sm" id="quick-scan">快速扫描</button>
+            <button class="btn sm ghost" id="open-portal-quick">打开测试门户</button>
+          </div>
+        </div>
+
+        <div class="grid stats">
+          <div class="stat cyan"><div class="k">发现 AP</div><div class="v" id="st-aps">0</div></div>
+          <div class="stat violet"><div class="k">客户端</div><div class="v" id="st-clients">0</div></div>
+          <div class="stat amber"><div class="k">抓包 / 哈希</div><div class="v" id="st-captures">0</div></div>
+          <div class="stat green"><div class="k">已破解</div><div class="v" id="st-cracked">0</div></div>
+          <div class="stat red"><div class="k">捕获凭证</div><div class="v" id="st-creds">0</div></div>
+          <div class="stat"><div class="k">风险发现</div><div class="v" id="st-findings">0</div></div>
+        </div>
+
+        <div class="panel attack-banner hidden" id="attack-banner" style="margin-bottom:16px">
+          <div class="panel-head">
+            <div class="attack-title"><span class="pulse"></span><span id="attack-title">攻击进行中</span></div>
+            <div class="right">
+              <span class="pill warn" id="attack-target">-</span>
+              <button class="btn danger sm" id="attack-stop">停止</button>
+            </div>
+          </div>
+          <div class="attack-log" id="attack-log"></div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>实时事件</h3>
+              <div class="right">
+                <span class="chip"><span class="dot online"></span>WebSocket</span>
+                <button class="btn sm ghost" id="clear-feed">清屏</button>
+              </div>
+            </div>
+            <div class="feed" id="feed"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>信号最强的网络</h3>
+              <div class="right"><button class="btn sm ghost" data-goto="targets">全部 →</button></div>
+            </div>
+            <div class="panel-body flush">
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>SSID</th><th>安全</th><th>信号</th><th></th></tr></thead>
+                  <tbody id="ap-preview"><tr><td colspan="4" class="empty">尚未扫描</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ 目标 -->
+      <section class="view" id="view-targets">
+        <div class="view-head">
+          <div>
+            <h2>目标</h2>
+            <p>发现 <span id="target-count">0</span> 个接入点，点击行查看详情与可执行攻击</p>
+          </div>
+          <div class="actions">
+            <button class="btn sm" id="refresh-targets">刷新</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input type="text" id="ap-search" placeholder="搜索 SSID / BSSID / 厂商…">
+          <select id="ap-filter">
+            <option value="">全部安全类型</option>
+            <option value="OPEN">开放网络</option>
+            <option value="WEP">WEP</option>
+            <option value="WPA2">WPA2</option>
+            <option value="WPA3">WPA3</option>
+            <option value="WPA2/WPA3">WPA2/WPA3 过渡</option>
+            <option value="ENT">企业级 (EAP)</option>
+            <option value="WPS">启用 WPS</option>
+          </select>
+          <div class="spacer"></div>
+          <span class="chip" id="targets-hint">扫描后可对目标发起攻击</span>
+        </div>
+        <div class="panel">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>SSID</th><th>BSSID</th><th>信道</th><th>安全</th><th>信号</th><th>WPS</th><th>客户端</th><th>厂商</th><th></th></tr>
+              </thead>
+              <tbody id="targets-body">
+                <tr><td colspan="9" class="empty"><div class="big">📡</div>还没有发现接入点，先启动扫描</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ 攻击 -->
+      <section class="view" id="view-attacks">
+        <div class="view-head">
+          <div>
+            <h2>攻击模块</h2>
+            <p>选择目标后执行；演示模式为模拟执行，live 模式需授权与 root 权限</p>
+          </div>
+          <div class="actions">
+            <span class="chip" id="attack-mode-hint"></span>
+          </div>
+        </div>
+        <div class="panel hidden" id="active-attack-panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <h3 id="active-attack-name">当前攻击</h3>
+            <div class="right"><button class="btn danger sm" id="active-attack-stop">停止</button></div>
+          </div>
+          <div class="panel-body" id="active-attack-body"></div>
+        </div>
+        <div class="grid modules" id="modules-grid"></div>
+
+        <div class="panel" style="margin-top:18px">
+          <div class="panel-head"><h3>历史攻击任务</h3></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>任务</th><th>模块</th><th>目标</th><th>状态</th><th>耗时</th><th>开始时间</th></tr></thead>
+              <tbody id="jobs-body"><tr><td colspan="6" class="empty">暂无任务</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ 捕获与破解 -->
+      <section class="view" id="view-captures">
+        <div class="view-head">
+          <div>
+            <h2>捕获与破解</h2>
+            <p>握手 / PMKID / WEP 抓包，支持 aircrack-ng、hashcat 与内置离线校验</p>
+          </div>
+          <div class="actions">
+            <button class="btn sm" id="refresh-captures">刷新</button>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head"><h3>抓包文件</h3><div class="right"><span class="chip" id="captures-count">0 个</span></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>类型</th><th>目标</th><th>文件</th><th>大小</th><th>哈希</th><th>时间</th><th></th></tr></thead>
+              <tbody id="captures-body"><tr><td colspan="8" class="empty">暂无抓包，先执行握手 / PMKID / WEP 攻击</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>破解任务</h3><div class="right"><span class="chip" id="cracks-hint">空闲</span></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>抓包</th><th>方法</th><th>字典</th><th>状态</th><th>结果</th><th>进度</th><th></th></tr></thead>
+              <tbody id="cracks-body"><tr><td colspan="8" class="empty">暂无破解任务</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ 凭证 -->
+      <section class="view" id="view-credentials">
+        <div class="view-head">
+          <div>
+            <h2>门户与凭证</h2>
+            <p>强制门户捕获的账号口令，以及独立测试门户的开关</p>
+          </div>
+          <div class="actions">
+            <button class="btn sm primary" id="portal-open">打开测试门户</button>
+            <button class="btn sm ghost" id="portal-stop">关闭门户</button>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head">
+            <h3>门户状态</h3>
+            <div class="right"><span class="pill" id="portal-state">未运行</span></div>
+          </div>
+          <div class="panel-body">
+            <div class="chip" style="gap:10px">
+              <span class="muted">地址：</span>
+              <a id="portal-url" class="mono" href="#" target="_blank" rel="noopener">—</a>
+              <span class="muted" id="portal-stats"></span>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>捕获的凭证</h3><div class="right"><span class="chip" id="cred-count">0 条</span></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>用户名</th><th>口令</th><th>来源</th><th>IP</th><th>User-Agent</th><th>时间</th></tr></thead>
+              <tbody id="creds-body"><tr><td colspan="7" class="empty">暂无凭证</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ 报告 -->
+      <section class="view" id="view-report">
+        <div class="view-head">
+          <div>
+            <h2>报告</h2>
+            <p>汇总风险发现、AP 清单、已恢复口令与事件时间线</p>
+          </div>
+          <div class="actions">
+            <button class="btn sm" id="report-preview">预览</button>
+            <button class="btn sm primary" id="report-save">生成并保存</button>
+            <a class="btn sm ghost" id="report-json" href="/api/report/json" target="_blank" rel="noopener">JSON</a>
+            <a class="btn sm ghost" id="report-md" href="/api/report/md" target="_blank" rel="noopener">Markdown</a>
+          </div>
+        </div>
+        <div class="notice info">报告中包含口令与凭证，请按敏感数据要求加密存储与受控分发。</div>
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head"><h3>风险发现</h3><div class="right"><span class="chip" id="findings-count">0 项</span></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>级别</th><th>标题</th><th>目标</th><th>详情</th></tr></thead>
+              <tbody id="findings-body"><tr><td colspan="4" class="empty">暂无发现</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:16px">
+          <div class="panel-head"><h3>已保存报告</h3><div class="right"><button class="btn sm ghost" id="report-refresh">刷新</button></div></div>
+          <div class="panel-body" id="report-files"><span class="muted">尚未生成报告</span></div>
+        </div>
+        <iframe id="report-frame" class="report-frame hidden" title="报告预览"></iframe>
+      </section>
+
+      <!-- ============================================================ 设置 -->
+      <section class="view" id="view-settings">
+        <div class="view-head">
+          <div>
+            <h2>设置</h2>
+            <p>运行模式、授权确认、工具依赖与审计日志</p>
+          </div>
+        </div>
+
+        <div class="notice danger" id="legal-notice" style="margin-bottom:16px">
+          仅可对已获得书面授权的无线网络进行测试。live 模式会发送真实管理帧/认证帧，
+          可能造成网络中断。所有攻击操作都会写入 <span class="mono">data/audit.jsonl</span>。
+        </div>
+
+        <div class="settings-grid">
+          <div class="panel">
+            <div class="panel-head"><h3>运行配置</h3></div>
+            <div class="panel-body">
+              <div class="check" style="margin-bottom:16px">
+                <span class="muted">当前模式：</span>
+                <span class="mode-badge demo" id="settings-mode">演示模式</span>
+              </div>
+              <div style="display:flex;gap:8px;margin-bottom:16px">
+                <button class="btn sm" id="mode-demo">切换到演示</button>
+                <button class="btn sm danger" id="mode-live">切换到实机</button>
+              </div>
+              <label class="field"><span>默认网卡</span>
+                <select id="cfg-iface"><option value="">自动选择</option></select>
+                <span class="hint">支持 monitor 模式的网卡才能用于 live 扫描</span>
+              </label>
+              <label class="field"><span>字典路径</span>
+                <input type="text" id="cfg-wordlist" placeholder="/usr/share/wordlists/rockyou.txt">
+                <span class="hint" id="cfg-wordlist-hint"></span>
+              </label>
+              <label class="field"><span>操作者</span>
+                <input type="text" id="cfg-operator" placeholder="姓名 / 工号">
+              </label>
+              <button class="btn primary sm" id="cfg-save">保存配置</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><h3>授权门禁</h3></div>
+            <div class="panel-body">
+              <div class="chip" style="margin-bottom:12px">
+                <span class="dot" id="auth-dot"></span>
+                <span id="auth-text">未授权</span>
+              </div>
+              <label class="field"><span>授权令牌（输入 AUTHORIZED）</span>
+                <input type="password" id="auth-token" placeholder="AUTHORIZED" autocomplete="off">
+              </label>
+              <label class="field"><span>授权范围（可选，每行 BSSID 前缀或 SSID 通配）</span>
+                <textarea id="auth-scope" placeholder="aa:bb:cc&#10;Corp-*&#10;*"></textarea>
+                <span class="hint">留空表示不限制；范围外目标会被拒绝并记录审计</span>
+              </label>
+              <div style="display:flex;gap:8px">
+                <button class="btn primary sm" id="auth-submit">确认授权</button>
+                <button class="btn danger sm" id="auth-revoke">撤销</button>
+              </div>
+              <div class="scope-list" id="auth-scope-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head"><h3>工具依赖</h3><div class="right"><span class="chip" id="deps-summary"></span></div></div>
+          <div class="panel-body" id="deps-body"></div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head"><h3>授权审计日志</h3><div class="right"><button class="btn sm ghost" id="audit-refresh">刷新</button></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>时间</th><th>动作</th><th>目标</th><th>结果</th><th>原因</th></tr></thead>
+              <tbody id="audit-body"><tr><td colspan="5" class="empty">暂无记录</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 目标详情抽屉 -->
+<div class="drawer hidden" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <h3 id="drawer-title">目标详情</h3>
+      <div class="sub" id="drawer-sub">—</div>
+    </div>
+    <button class="drawer-close" id="drawer-close">✕</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toasts"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
